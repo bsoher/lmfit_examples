@@ -19,9 +19,15 @@ from lmfit import Minimizer, Parameters, report_fit
 
 def sum_gaussians(pars, t):
     ''' model is a sum of gaussians converted from the time to frequency domain'''
-    model  = pars['amp1'] * np.exp(-1j * pars['cen1']*2*np.pi*t) * np.exp(-(t/pars['wid1'])**2)
-    model += pars['amp2'] * np.exp(-1j * pars['cen2']*2*np.pi*t) * np.exp(-(t/pars['wid2'])**2)
-    model += pars['amp3'] * np.exp(-1j * pars['cen3']*2*np.pi*t) * np.exp(-(t/pars['wid3'])**2)
+    if not any('delta' in item for item in pars.keys()):
+        model  = pars['amp1'] * np.exp(-1j * pars['cen1']*2*np.pi*t) * np.exp(-(t/pars['wid1'])**2)
+        model += pars['amp2'] * np.exp(-1j * pars['cen2']*2*np.pi*t) * np.exp(-(t/pars['wid2'])**2)
+        model += pars['amp3'] * np.exp(-1j * pars['cen3']*2*np.pi*t) * np.exp(-(t/pars['wid3'])**2)
+    else:
+        cen2 = pars['cen1']+pars['delta_cen2']
+        model  = pars['amp1'] * np.exp(-1j * pars['cen1'] * 2 * np.pi * t) * np.exp(-(t / pars['wid1']) ** 2)
+        model += pars['amp2'] * np.exp(-1j *       cen2   * 2 * np.pi * t) * np.exp(-(t / pars['wid2']) ** 2)
+        model += pars['amp3'] * np.exp(-1j * pars['cen3'] * 2 * np.pi * t) * np.exp(-(t / pars['wid3']) ** 2)
     model = np.fft.fft(model).real
     return model
 
@@ -31,16 +37,19 @@ def dfunc(pars, *args, **kwargs):
     gauss1 = np.exp(-1j* pars[3]         *2*np.pi*t) * np.exp(-(t/pars[6])**2)
     gauss2 = np.exp(-1j*(pars[3]+pars[4])*2*np.pi*t) * np.exp(-(t/pars[7])**2)
     gauss3 = np.exp(-1j* pars[5]         *2*np.pi*t) * np.exp(-(t/pars[8])**2)
+
     # calculate the 9 partial derivatives
+
     pder.append(gauss1)
     pder.append(gauss2)
     pder.append(gauss3)
-    pder.append(-1j*2*np.pi*t*pars[0] * gauss1)
+    pder.append((-1j*2*np.pi*t*pars[0] * gauss1)+(-1j*2*np.pi*t*pars[1] * gauss2))
     pder.append(-1j*2*np.pi*t*pars[1] * gauss2)
     pder.append(-1j*2*np.pi*t*pars[2] * gauss3)
     pder.append((2.0 * (t**2) / (pars[6]**3)) * pars[0] * gauss1)
     pder.append((2.0 * (t**2) / (pars[7]**3)) * pars[1] * gauss2)
     pder.append((2.0 * (t**2) / (pars[8]**3)) * pars[2] * gauss3)
+
     # convert to frequency domain
     pder = [np.fft.fft(item).real for item in pder]
     pder = np.array(pder)
@@ -79,8 +88,8 @@ if __name__ == '__main__':
                   ('amp2',    1, True, None, None, None, None),
                   ('amp3',   12, True, None, None, None, None),
                   ('cen1',  128, True, 0.0, 255.0, None, None),
-                  ('del2',   13, True, 5.0,  20.0, None, None),
-                  ('cen2', None, False, None, None, 'cen1+del2', None),
+                  ('delta_cen2',   13, True, 5.0,  20.0, None, None),
+                  ('cen2', None, False, None, None, 'cen1+delta_cen2', None),
                   ('cen3',   64, True, 0.0, 255.0, None, None),
                   ('wid1', 0.03, True, 0.01, 1.00, None, None),
                   ('wid2', 0.03, True, 0.01, 1.00, None, None),
